@@ -1,4 +1,4 @@
-var testcase_items = new Array();
+var testcase_items = [];
 var active = false;
 var empty = true;
 var tab_id = null;
@@ -25,7 +25,6 @@ function createContextItems() {
   return {
     comment: chrome.contextMenus.create({
       "title": "Add comment",
-      "enabled": false,
       "onclick": function () {
         chrome.tabs.getSelected(null, function (tab) {
           var text = window.prompt("Type your comment:");
@@ -36,10 +35,8 @@ function createContextItems() {
 
     screenshot: chrome.contextMenus.create({
       "title": "Take screenshot",
-      "enabled": false,
       "onclick": function () {
         chrome.tabs.getSelected(null, function (tab) {
-          var text = window.prompt("Type your comment:");
           chrome.tabs.sendMessage(tab.id, { action: "takeScreenshot" });
         });
       }
@@ -129,7 +126,7 @@ function createContextItems() {
           chrome.tabs.sendMessage(tab.id, { action: "checkHref" });
         });
       }
-    }),
+    })
   }
 }
 

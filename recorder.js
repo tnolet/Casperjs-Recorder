@@ -43,9 +43,6 @@ if (typeof (TestRecorder) == "undefined") {
 //in the given window. The event name should be of the form "click", "blur",
 //"change", etc. 
 
-//getSelection(window) -- return the text currently selected, or the empty
-//string if no text is currently selected in the browser.
-
 //---------------------------------------------------------------------------
 
 if (typeof (TestRecorder.Browser) == "undefined") {
@@ -64,48 +61,6 @@ TestRecorder.Browser.releaseEvent = function (wnd, name, func) {
     var doc = wnd.document;
     wnd.releaseEvents(Event[name.toUpperCase()]);
     wnd["on" + lname] = null;
-}
-
-TestRecorder.Browser.getSelection = function (wnd) {
-    var doc = wnd.document;
-    if (wnd.getSelection) {
-        return wnd.getSelection() + "";
-    }
-    else if (doc.getSelection) {
-        return doc.getSelection() + "";
-    }
-    else if (doc.selection && doc.selection.createRange) {
-        return doc.selection.createRange().text + "";
-    }
-    return "";
-}
-
-TestRecorder.Browser.windowHeight = function (wnd) {
-    var doc = wnd.document;
-    if (wnd.innerHeight) {
-        return wnd.innerHeight;
-    }
-    else if (doc.documentElement && doc.documentElement.clientHeight) {
-        return doc.documentElement.clientHeight;
-    }
-    else if (document.body) {
-        return document.body.clientHeight;
-    }
-    return -1;
-}
-
-TestRecorder.Browser.windowWidth = function (wnd) {
-    var doc = wnd.document;
-    if (wnd.innerWidth) {
-        return wnd.innerWidth;
-    }
-    else if (doc.documentElement && doc.documentElement.clientWidth) {
-        return doc.documentElement.clientWidth;
-    }
-    else if (document.body) {
-        return document.body.clientWidth;
-    }
-    return -1;
 }
 
 
@@ -204,26 +159,6 @@ TestRecorder.Event.prototype.shiftkey = function () {
         return true;
     return false;
 }
-
-TestRecorder.Event.prototype.posX = function () {
-    if (this.event.pageX)
-        return this.event.pageX;
-    else if (this.event.clientX) {
-        return this.event.clientX + document.body.scrollLeft;
-    }
-    return 0;
-}
-
-TestRecorder.Event.prototype.posY = function () {
-    if (this.event.pageY)
-        return this.event.pageY;
-    else if (this.event.clientY) {
-        return this.event.clientY + document.body.scrollTop;
-    }
-    return 0;
-}
-
-
 
 //---------------------------------------------------------------------------
 //TestCase -- this class contains the interesting events that happen in 
@@ -452,11 +387,9 @@ TestRecorder.KeyEvent = function (target, text) {
     this.text = text;
 }
 
-TestRecorder.MouseEvent = function (type, target, x, y) {
+TestRecorder.MouseEvent = function (type, target) {
     this.type = type;
     this.info = new TestRecorder.ElementInfo(target);
-    this.x = x;
-    this.y = y;
     this.text = recorder.strip(target.textContent);
 }
 
@@ -588,7 +521,7 @@ TestRecorder.Recorder.prototype.clickaction = function (e) {
     } else {
         recorder.testcase.append(
             new TestRecorder.MouseEvent(
-                TestRecorder.EventTypes.Click, e.target(), e.posX(), e.posY()
+                TestRecorder.EventTypes.Click, e.target()
             ));
     }
 }
@@ -669,7 +602,7 @@ TestRecorder.Recorder.prototype.ondrag = function (e) {
     var e = new TestRecorder.Event(e);
     recorder.testcase.append(
         new TestRecorder.MouseEvent(
-            TestRecorder.EventTypes.MouseDrag, e.target(), e.posX(), e.posY()
+            TestRecorder.EventTypes.MouseDrag, e.target()
         ));
 }
 TestRecorder.Recorder.prototype.onmousedown = function (e) {
@@ -677,7 +610,7 @@ TestRecorder.Recorder.prototype.onmousedown = function (e) {
     if (e.button() == TestRecorder.Event.LeftButton) {
         recorder.testcase.append(
             new TestRecorder.MouseEvent(
-                TestRecorder.EventTypes.MouseDown, e.target(), e.posX(), e.posY()
+                TestRecorder.EventTypes.MouseDown, e.target()
             ));
     }
 }
@@ -686,7 +619,7 @@ TestRecorder.Recorder.prototype.onmouseup = function (e) {
     if (e.button() == TestRecorder.Event.LeftButton) {
         recorder.testcase.append(
             new TestRecorder.MouseEvent(
-                TestRecorder.EventTypes.MouseUp, e.target(), e.posX(), e.posY()
+                TestRecorder.EventTypes.MouseUp, e.target()
             ));
     }
 }
