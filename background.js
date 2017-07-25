@@ -2,7 +2,8 @@ var testcase_items = new Array();
 var active = false;
 var empty = true;
 var tab_id = null;
-chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+var contextItems;
+chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
   if (request.action == "append") {
     testcase_items[testcase_items.length] = request.obj;
     empty = false;
@@ -13,26 +14,145 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     sendResponse({});
   }
   if (request.action == "get_status") {
-    sendResponse({'active': active, 'empty': empty});
-  }
-  if (request.action == "start") {
-  	if(!active) {
-  	    active = true;
-  	    empty = true;
-  	    testcase_items = new Array();
-  	    tab_id = request.recorded_tab;
-  	    chrome.tabs.update(tab_id, {url: request.start_url}, function(tab) {
-          chrome.tabs.sendMessage(tab_id, {action: "open", 'url': request.start_url});
-          sendResponse({start: true});
-  	    });
-  	}
-  }
-  if (request.action == "stop") {
-    active = false;
-    chrome.tabs.sendMessage(tab_id, {action: "stop"});
-    sendResponse({});
+    sendResponse({ 'active': active, 'empty': empty });
   }
   if (request.action == "get_items") {
-	sendResponse({'items': testcase_items});
+    sendResponse({ 'items': testcase_items });
+  }
+});
+
+function createContextItems() {
+  return {
+    comment: chrome.contextMenus.create({
+      "title": "Add comment",
+      "enabled": false,
+      "onclick": function () {
+        chrome.tabs.getSelected(null, function (tab) {
+          var text = window.prompt("Type your comment:");
+          chrome.tabs.sendMessage(tab.id, { action: "addComment", 'text': text });
+        });
+      }
+    }),
+
+    screenshot: chrome.contextMenus.create({
+      "title": "Take screenshot",
+      "enabled": false,
+      "onclick": function () {
+        chrome.tabs.getSelected(null, function (tab) {
+          var text = window.prompt("Type your comment:");
+          chrome.tabs.sendMessage(tab.id, { action: "takeScreenshot" });
+        });
+      }
+    }),
+
+    checkPageTitle: chrome.contextMenus.create({
+      "title": "Check page title",
+      "onclick": function (e) {
+        chrome.tabs.getSelected(null, function (tab) {
+          chrome.tabs.sendMessage(tab.id, { action: "checkPageTitle" });
+        });
+      }
+    }),
+
+    checkPageLocation: chrome.contextMenus.create({
+      "title": "Check page location",
+      "onclick": function (e) {
+        chrome.tabs.getSelected(null, function (tab) {
+          chrome.tabs.sendMessage(tab.id, { action: "checkPageLocation" });
+        });
+      }
+    }),
+
+    checkValue: chrome.contextMenus.create({
+      "title": "Check value",
+      "onclick": function (e) {
+        chrome.tabs.getSelected(null, function (tab) {
+          chrome.tabs.sendMessage(tab.id, { action: "checkValue" });
+        });
+      }
+    }),
+
+    checkText: chrome.contextMenus.create({
+      "title": "Check text",
+      "onclick": function (e) {
+        chrome.tabs.getSelected(null, function (tab) {
+          chrome.tabs.sendMessage(tab.id, { action: "checkText" });
+        });
+      }
+    }),
+
+    checkTextPresent: chrome.contextMenus.create({
+      "title": "Check selection exists",
+      "contexts": ["selection"],
+      "onclick": function (e) {
+        chrome.tabs.getSelected(null, function (tab) {
+          chrome.tabs.sendMessage(tab.id, { action: "checkTextPresent", 'text': e.selectionText });
+        });
+      }
+    }),
+
+    checkSelectOptions: chrome.contextMenus.create({
+      "title": "Check select options",
+      "contexts": ["editable"],
+      "onclick": function (e) {
+        chrome.tabs.getSelected(null, function (tab) {
+          chrome.tabs.sendMessage(tab.id, { action: "checkSelectOptions" });
+        });
+      }
+    }),
+
+    checkSelectValue: chrome.contextMenus.create({
+      "title": "Check select options",
+      "contexts": ["editable"],
+      "onclick": function (e) {
+        chrome.tabs.getSelected(null, function (tab) {
+          chrome.tabs.sendMessage(tab.id, { action: "checkSelectValue" });
+        });
+      }
+    }),
+
+    checkImgSrc: chrome.contextMenus.create({
+      "title": "Check image src",
+      "contexts": ["image"],
+      "onclick": function (e) {
+        chrome.tabs.getSelected(null, function (tab) {
+          chrome.tabs.sendMessage(tab.id, { action: "checkImgSrc" });
+        });
+      }
+    }),
+
+    checkHref: chrome.contextMenus.create({
+      "title": "Check link href",
+      "contexts": ["link"],
+      "onclick": function (e) {
+        chrome.tabs.getSelected(null, function (tab) {
+          chrome.tabs.sendMessage(tab.id, { action: "checkHref" });
+        });
+      }
+    }),
+  }
+}
+
+var record = chrome.contextMenus.create({
+  title: "Start recording",
+  onclick: function (info, tab) {
+    if (!active) {
+      chrome.contextMenus.update(record, {title: "Stop recording"});
+      active = true;
+      empty = true;
+      testcase_items = [];
+      contextItems = createContextItems();
+      chrome.tabs.update(tab.id, { url: tab.url }, function (tab) {
+        chrome.tabs.sendMessage(tab.id, { action: "open", 'url': tab.url });
+      });
+    } else {
+      chrome.contextMenus.update(record, {title: "Start recording"});
+      active = false;
+      Object.values(contextItems).forEach(function(name){
+        chrome.contextMenus.remove(name);
+      });
+      chrome.tabs.sendMessage(tab.id, { action: "stop" });
+      chrome.tabs.create({ url: "./casper.html" });
+    }
   }
 });

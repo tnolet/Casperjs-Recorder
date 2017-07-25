@@ -24,6 +24,7 @@
 //Contact Brian Lloyd (brian@zope.com) with questions or comments.
 //---------------------------------------------------------------------------
 
+
 if (typeof (TestRecorder) == "undefined") {
     TestRecorder = {};
 }
@@ -246,7 +247,7 @@ TestRecorder.TestCase = function () {
 
 TestRecorder.TestCase.prototype.append = function (o) {
     this.items[this.items.length] = o;
-    chrome.runtime.sendMessage({ action: "append", obj: o });
+    chrome.runtime.sendMessage({ action: "append", obj: o }, function(){});
 }
 
 TestRecorder.TestCase.prototype.peek = function () {
@@ -255,7 +256,7 @@ TestRecorder.TestCase.prototype.peek = function () {
 
 TestRecorder.TestCase.prototype.poke = function (o) {
     this.items[this.items.length - 1] = o;
-    chrome.runtime.sendMessage({ action: "poke", obj: o });
+    chrome.runtime.sendMessage({ action: "poke", obj: o }, function(){});
 }
 
 
@@ -437,7 +438,7 @@ TestRecorder.DocumentEvent = function (type, target) {
 TestRecorder.ElementEvent = function (type, target, text) {
     this.type = type;
     this.info = new TestRecorder.ElementInfo(target);
-    this.text = text ? text : recorder.strip(contextmenu.innertext(target));
+    this.text = text ? text : recorder.strip(rightclicked_item.textContent);
 }
 
 TestRecorder.CommentEvent = function (text) {
@@ -456,7 +457,7 @@ TestRecorder.MouseEvent = function (type, target, x, y) {
     this.info = new TestRecorder.ElementInfo(target);
     this.x = x;
     this.y = y;
-    this.text = recorder.strip(contextmenu.innertext(target));
+    this.text = recorder.strip(target.textContent);
 }
 
 TestRecorder.ScreenShotEvent = function () {
@@ -475,315 +476,6 @@ TestRecorder.PageLoadEvent = function (url) {
     this.url = url;
     this.viaBack = back
 }
-
-
-
-//---------------------------------------------------------------------------
-//ContextMenu -- this class is responsible for managing the right-click 
-//context menu that shows appropriate checks for targeted elements.
-
-//All methods and attributes are private to this implementation.
-//---------------------------------------------------------------------------
-
-TestRecorder.ContextMenu = function () {
-    this.selected = null;
-    this.target = null;
-    this.window = null;
-    this.visible = false;
-    this.over = false;
-    this.menu = null;
-}
-
-contextmenu = new TestRecorder.ContextMenu();
-
-
-TestRecorder.ContextMenu.prototype.build = function (t, x, y) {
-    var d = recorder.window.document;
-    var b = d.getElementsByTagName("body").item(0);
-    var menu = d.createElement("div");
-
-    // Needed to deal with various cross-browser insanities...
-    menu.setAttribute("style", "backgroundColor:#ffffff;color:#000000;border:1px solid #000000;padding:2px;position:absolute;display:none;top:" + y + "px;left:" + x + "px;border:1px;z-index:10000;");
-
-    menu.style.backgroundColor = "#ffffff";
-    menu.style.color = "#000000";
-    menu.style.border = "1px solid #000000";
-    menu.style.padding = "2px";
-    menu.style.position = "absolute";
-    menu.style.display = "none";
-    menu.style.zIndex = "10000";
-    menu.style.top = y.toString();
-    menu.style.left = x.toString();
-    menu.onmouseover = contextmenu.onmouseover;
-    menu.onmouseout = contextmenu.onmouseout;
-
-    var selected = TestRecorder.Browser.getSelection(recorder.window).toString();
-
-    if (t.width && t.height) {
-        menu.appendChild(this.item("Check Image Src", this.checkImgSrc));
-    }
-
-    else if (t.type == "text" || t.type == "textarea") {
-        menu.appendChild(this.item("Check Text Value", this.checkValue));
-        menu.appendChild(this.item("Check Enabled", this.checkEnabled));
-        menu.appendChild(this.item("Check Disabled", this.checkDisabled));
-    }
-
-    else if (selected && (selected != "")) {
-        this.selected = recorder.strip(selected);
-        menu.appendChild(this.item("Check Text Appears On Page",
-            this.checkTextPresent));
-    }
-
-    else if (t.href) {
-        menu.appendChild(this.item("Check Link Text", this.checkText));
-        menu.appendChild(this.item("Check Link Href", this.checkHref));
-    }
-
-    else if (t.selectedIndex || t.type == "option") {
-        var name = "Check Selected Value";
-        if (t.type != "select-one") {
-            name = name + "s";
-        }
-        menu.appendChild(this.item(name, this.checkSelectValue));
-        menu.appendChild(this.item("Check Select Options",
-            this.checkSelectOptions));
-        menu.appendChild(this.item("Check Enabled", this.checkEnabled));
-        menu.appendChild(this.item("Check Disabled", this.checkDisabled));
-    }
-
-    else if (t.type == "button" || t.type == "submit") {
-        menu.appendChild(this.item("Check Button Text", this.checkText));
-        menu.appendChild(this.item("Check Button Value", this.checkValue));
-        menu.appendChild(this.item("Check Enabled", this.checkEnabled));
-        menu.appendChild(this.item("Check Disabled", this.checkDisabled));
-    }
-
-    else if (t.value) {
-        menu.appendChild(this.item("Check Value", this.checkValue));
-        menu.appendChild(this.item("Check Enabled", this.checkEnabled));
-        menu.appendChild(this.item("Check Disabled", this.checkDisabled));
-    }
-
-    else {
-        menu.appendChild(this.item("Check Page Location", this.checkPageLocation));
-        menu.appendChild(this.item("Check Page Title", this.checkPageTitle));
-        menu.appendChild(this.item("Screenshot", this.doScreenShot));
-    }
-
-    menu.appendChild(this.item("Cancel", this.cancel));
-
-    b.insertBefore(menu, b.firstChild);
-    return menu;
-}
-
-TestRecorder.ContextMenu.prototype.item = function (text, func) {
-    var doc = recorder.window.document;
-    var div = doc.createElement("div");
-    var txt = doc.createTextNode(text);
-    div.setAttribute("style", "padding:6px;border:1px solid #ffffff;");
-    div.style.border = "1px solid #ffffff";
-    div.style.padding = "6px";
-    div.appendChild(txt);
-    div.onmouseover = this.onitemmouseover;
-    div.onmouseout = this.onitemmouseout;
-    div.onclick = func;
-    return div;
-}
-
-TestRecorder.ContextMenu.prototype.show = function (e) {
-    if (this.menu) {
-        this.hide();
-    }
-    var wnd = recorder.window;
-    var doc = wnd.document;
-    this.target = e.target();
-    TestRecorder.Browser.captureEvent(wnd, "mousedown", this.onmousedown);
-
-    var wh = TestRecorder.Browser.windowHeight(wnd);
-    var ww = TestRecorder.Browser.windowWidth(wnd);
-    var x = e.posX();
-    var y = e.posY();
-    if ((ww >= 0) && ((ww - x) < 100)) {
-        x = x - 100;
-    }
-    if ((wh >= 0) && ((wh - y) < 100)) {
-        y = y - 100;
-    }
-    var menu = this.build(e.target(), x, y);
-    this.menu = menu;
-    menu.style.display = "";
-    this.visible = true;
-    return;
-}
-
-TestRecorder.ContextMenu.prototype.hide = function () {
-    var wnd = recorder.window;
-    TestRecorder.Browser.releaseEvent(wnd, "mousedown", this.onmousedown);
-    var d = wnd.document;
-    var b = d.getElementsByTagName("body").item(0);
-    this.menu.style.display = "none";
-    b.removeChild(this.menu);
-    this.target = null;
-    this.visible = false;
-    this.over = false;
-    this.menu = null;
-}
-
-TestRecorder.ContextMenu.prototype.onitemmouseover = function (e) {
-    this.style.backgroundColor = "#efefef";
-    this.style.border = "1px solid #c0c0c0";
-    return true;
-}
-
-TestRecorder.ContextMenu.prototype.onitemmouseout = function (e) {
-    this.style.backgroundColor = "#ffffff";
-    this.style.border = "1px solid #ffffff";
-    return true;
-}
-
-TestRecorder.ContextMenu.prototype.onmouseover = function (e) {
-    contextmenu.over = true;
-}
-
-TestRecorder.ContextMenu.prototype.onmouseout = function (e) {
-    contextmenu.over = false;
-}
-
-TestRecorder.ContextMenu.prototype.onmousedown = function (e) {
-    if (contextmenu.visible) {
-        if (contextmenu.over == false) {
-            contextmenu.hide();
-            return true;
-        }
-        return true;
-    }
-    return false;
-}
-
-TestRecorder.ContextMenu.prototype.record = function (o) {
-    recorder.testcase.append(o);
-    recorder.log(o.type);
-    contextmenu.hide();
-}
-
-TestRecorder.ContextMenu.prototype.checkPageTitle = function () {
-    var doc = recorder.window.document;
-    var et = TestRecorder.EventTypes;
-    var e = new TestRecorder.DocumentEvent(et.CheckPageTitle, doc);
-    contextmenu.record(e);
-}
-
-TestRecorder.ContextMenu.prototype.doScreenShot = function () {
-    var e = new TestRecorder.ScreenShotEvent();
-    contextmenu.record(e);
-}
-
-TestRecorder.ContextMenu.prototype.checkPageLocation = function () {
-    var doc = recorder.window.document;
-    var et = TestRecorder.EventTypes;
-    var e = new TestRecorder.DocumentEvent(et.CheckPageLocation, doc);
-    contextmenu.record(e);
-}
-
-TestRecorder.ContextMenu.prototype.checkValue = function () {
-    var t = contextmenu.target;
-    var et = TestRecorder.EventTypes;
-    var e = new TestRecorder.ElementEvent(et.CheckValue, t);
-    contextmenu.record(e);
-}
-
-TestRecorder.ContextMenu.prototype.checkValueContains = function () {
-    var s = contextmenu.selected;
-    var t = contextmenu.target;
-    var et = TestRecorder.EventTypes;
-    var e = new TestRecorder.ElementEvent(et.CheckValueContains, t, s);
-    contextmenu.selected = null;
-    contextmenu.record(e);
-}
-
-TestRecorder.ContextMenu.prototype.innertext = function (e) {
-    var doc = recorder.window.document;
-    if (document.createRange) {
-        var r = recorder.window.document.createRange();
-        r.selectNodeContents(e);
-        return r.toString();
-    } else {
-        return e.innerText;
-    }
-}
-
-TestRecorder.ContextMenu.prototype.checkText = function () {
-    var t = contextmenu.target;
-    var s = "";
-    if (t.type == "button" || t.type == "submit") {
-        s = t.value;
-    }
-    else {
-        s = contextmenu.innertext(t);
-    }
-    s = recorder.strip(s);
-    var et = TestRecorder.EventTypes;
-    var e = new TestRecorder.ElementEvent(et.CheckText, t, s);
-    contextmenu.record(e);
-}
-
-TestRecorder.ContextMenu.prototype.checkTextPresent = function () {
-    var t = contextmenu.target;
-    var s = contextmenu.selected;
-    var et = TestRecorder.EventTypes;
-    var e = new TestRecorder.ElementEvent(et.CheckTextPresent, t, s);
-    contextmenu.selected = null;
-    contextmenu.record(e);
-}
-
-TestRecorder.ContextMenu.prototype.checkHref = function () {
-    var t = contextmenu.target;
-    var et = TestRecorder.EventTypes;
-    var e = new TestRecorder.ElementEvent(et.CheckHref, t);
-    contextmenu.record(e);
-}
-
-TestRecorder.ContextMenu.prototype.checkEnabled = function () {
-    var t = contextmenu.target;
-    var et = TestRecorder.EventTypes;
-    var e = new TestRecorder.ElementEvent(et.CheckEnabled, t);
-    contextmenu.record(e);
-}
-
-TestRecorder.ContextMenu.prototype.checkDisabled = function () {
-    var t = contextmenu.target;
-    var et = TestRecorder.EventTypes;
-    var e = new TestRecorder.ElementEvent(et.CheckDisabled, t);
-    contextmenu.record(e);
-}
-
-TestRecorder.ContextMenu.prototype.checkSelectValue = function () {
-    var t = contextmenu.target;
-    var et = TestRecorder.EventTypes;
-    var e = new TestRecorder.ElementEvent(et.CheckSelectValue, t);
-    contextmenu.record(e);
-}
-
-TestRecorder.ContextMenu.prototype.checkSelectOptions = function () {
-    var t = contextmenu.target;
-    var et = TestRecorder.EventTypes;
-    var e = new TestRecorder.ElementEvent(et.CheckSelectOptions, t);
-    contextmenu.record(e);
-}
-
-TestRecorder.ContextMenu.prototype.checkImgSrc = function () {
-    var t = contextmenu.target;
-    var et = TestRecorder.EventTypes;
-    var e = new TestRecorder.ElementEvent(et.CheckImageSrc, t);
-    contextmenu.record(e);
-}
-
-TestRecorder.ContextMenu.prototype.cancel = function () {
-    contextmenu.hide();
-}
-
-
 
 //---------------------------------------------------------------------------
 //Recorder -- a controller class that manages the recording of web browser
@@ -811,7 +503,7 @@ TestRecorder.Recorder = function () {
 //stable reference to the instance.
 
 recorder = new TestRecorder.Recorder();
-recorder.logfunc = function (msg) { console.log(msg); };
+recorder.logfunc = function (msg) {};
 
 TestRecorder.Recorder.prototype.start = function () {
     this.window = window;
@@ -821,7 +513,6 @@ TestRecorder.Recorder.prototype.start = function () {
     var actualCode = '(' + function () {
         var overloadStopPropagation = Event.prototype.stopPropagation;
         Event.prototype.stopPropagation = function () {
-            console.log(this);
             overloadStopPropagation.apply(this, arguments);
         };
     } + ')();';
@@ -857,7 +548,6 @@ TestRecorder.Recorder.prototype.pageLoad = function () {
 
 TestRecorder.Recorder.prototype.captureEvents = function () {
     var wnd = this.window;
-    TestRecorder.Browser.captureEvent(wnd, "contextmenu", this.oncontextmenu);
     TestRecorder.Browser.captureEvent(wnd, "drag", this.ondrag);
     TestRecorder.Browser.captureEvent(wnd, "mousedown", this.onmousedown);
     TestRecorder.Browser.captureEvent(wnd, "mouseup", this.onmouseup);
@@ -870,7 +560,6 @@ TestRecorder.Recorder.prototype.captureEvents = function () {
 
 TestRecorder.Recorder.prototype.releaseEvents = function () {
     var wnd = this.window;
-    TestRecorder.Browser.releaseEvent(wnd, "contextmenu", this.oncontextmenu);
     TestRecorder.Browser.releaseEvent(wnd, "drag", this.ondrag);
     TestRecorder.Browser.releaseEvent(wnd, "mousedown", this.onmousedown);
     TestRecorder.Browser.releaseEvent(wnd, "mouseup", this.onmouseup);
@@ -891,18 +580,16 @@ TestRecorder.Recorder.prototype.clickaction = function (e) {
     // If the context menu is visible, then the click is either over the 
     // menu (selecting a check) or out of the menu (cancelling it) so we 
     // always discard clicks that happen when the menu is visible.
-    if (!contextmenu.visible) {
-        var et = TestRecorder.EventTypes;
-        var t = e.target();
-        if (t.href || (t.type && t.type == "submit") ||
-            (t.type && t.type == "submit")) {
-            this.testcase.append(new TestRecorder.ElementEvent(et.Click, e.target()));
-        } else {
-            recorder.testcase.append(
-                new TestRecorder.MouseEvent(
-                    TestRecorder.EventTypes.Click, e.target(), e.posX(), e.posY()
-                ));
-        }
+    var et = TestRecorder.EventTypes;
+    var t = e.target();
+    if (t.href || (t.type && t.type == "submit") ||
+        (t.type && t.type == "submit")) {
+        this.testcase.append(new TestRecorder.ElementEvent(et.Click, e.target()));
+    } else {
+        recorder.testcase.append(
+            new TestRecorder.MouseEvent(
+                TestRecorder.EventTypes.Click, e.target(), e.posX(), e.posY()
+            ));
     }
 }
 
@@ -914,7 +601,6 @@ TestRecorder.Recorder.prototype.check = function (e) {
     // This method is called by our low-level event handler when the mouse 
     // is clicked in check mode. Its job is decide whether the click is
     // something we care about. If so, we record the check in the test case.
-    contextmenu.show(e);
     var target = e.target();
     if (target.type) {
         var type = target.type.toLowerCase();
@@ -923,9 +609,9 @@ TestRecorder.Recorder.prototype.check = function (e) {
         }
     }
     else if (target.href) {
-        if (target.innerText) {
-            var text = recorder.strip(target.innerText);
-            recorder.log('check link == "' + target.text + '"');
+        if (target.textContent) {
+            var text = recorder.strip(target.textContent);
+            recorder.log('check link == "' + target.textContent + '"');
         }
     }
 }
@@ -987,25 +673,21 @@ TestRecorder.Recorder.prototype.ondrag = function (e) {
         ));
 }
 TestRecorder.Recorder.prototype.onmousedown = function (e) {
-    if (!contextmenu.visible) {
-        var e = new TestRecorder.Event(e);
-        if (e.button() == TestRecorder.Event.LeftButton) {
-            recorder.testcase.append(
-                new TestRecorder.MouseEvent(
-                    TestRecorder.EventTypes.MouseDown, e.target(), e.posX(), e.posY()
-                ));
-        }
+    var e = new TestRecorder.Event(e);
+    if (e.button() == TestRecorder.Event.LeftButton) {
+        recorder.testcase.append(
+            new TestRecorder.MouseEvent(
+                TestRecorder.EventTypes.MouseDown, e.target(), e.posX(), e.posY()
+            ));
     }
 }
 TestRecorder.Recorder.prototype.onmouseup = function (e) {
-    if (!contextmenu.visible) {
-        var e = new TestRecorder.Event(e);
-        if (e.button() == TestRecorder.Event.LeftButton) {
-            recorder.testcase.append(
-                new TestRecorder.MouseEvent(
-                    TestRecorder.EventTypes.MouseUp, e.target(), e.posX(), e.posY()
-                ));
-        }
+    var e = new TestRecorder.Event(e);
+    if (e.button() == TestRecorder.Event.LeftButton) {
+        recorder.testcase.append(
+            new TestRecorder.MouseEvent(
+                TestRecorder.EventTypes.MouseUp, e.target(), e.posX(), e.posY()
+            ));
     }
 }
 //The dance here between onclick and oncontextmenu requires a bit of 
@@ -1038,19 +720,9 @@ TestRecorder.Recorder.prototype.onclick = function (e) {
     return false;
 }
 
-TestRecorder.Recorder.prototype.oncontextmenu = function (e) {
-    var e = new TestRecorder.Event(e);
-    recorder.check(e);
-    e.stopPropagation();
-    e.preventDefault();
-    return false;
-}
 
 TestRecorder.Recorder.prototype.onkeypress = function (e) {
     var e = new TestRecorder.Event(e);
-    if (e.shiftkey() && (e.keychar() == 'C')) {
-        // TODO show comment box here
-    }
     if (e.shiftkey() && (e.keychar() == 'S')) {
         recorder.testcase.append(new TestRecorder.ScreenShotEvent());
         e.stopPropagation();
@@ -1080,32 +752,114 @@ TestRecorder.Recorder.prototype.log = function (text) {
     }
 }
 
-chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
+
+var rightclicked_item = null;
+document.querySelector("body").addEventListener("contextmenu", function(e) {
+  rightclicked_item = e.srcElement;
+});
+document.querySelector("body").addEventListener("click", function() {
+  rightclicked_item = null;
+});
+
+chrome.runtime.onMessage.addListener(function (request, sender) {
     if (request.action == "start") {
         recorder.start();
-        sendResponse({});
     }
+
     if (request.action == "stop") {
         recorder.stop();
-        sendResponse({});
     }
+
     if (request.action == "open") {
         recorder.open(request.url);
-        sendResponse({});
     }
+
     if (request.action == "addComment") {
         recorder.addComment(request.text);
-        sendResponse({});
     }
+
     if (request.action == "takeScreenshot") {
         this.recorder.testcase.append(new TestRecorder.ScreenShotEvent());
-        sendResponse({});
+    }
+
+    if (request.action === "checkPageTitle") {
+        var doc = recorder.window.document;
+        var e = new TestRecorder.DocumentEvent(TestRecorder.EventTypes.CheckPageTitle, doc);
+        recorder.testcase.append(e);
+    }
+    
+    if (request.action === "checkPageLocation") {
+        var doc = recorder.window.document;
+        var e = new TestRecorder.DocumentEvent(TestRecorder.EventTypes.CheckPageLocation, doc);
+        recorder.testcase.append(e);
+    }
+    
+    if (request.action === "checkValue") {
+        var t = rightclicked_item;
+        var e = new TestRecorder.ElementEvent(TestRecorder.EventTypes.CheckValue, t);
+        recorder.testcase.append(e);
+    }
+
+    if (request.action === "checkText") {
+        var t = rightclicked_item;
+        var s = "";
+        if (t.type == "button" || t.type == "submit") {
+            s = t.value;
+        }
+        else {
+            s = t.textContent;
+        }
+        s = recorder.strip(s);
+        var e = new TestRecorder.ElementEvent(TestRecorder.EventTypes.CheckText, t, s);
+        recorder.testcase.append(e);
+    }
+    
+    if (request.action === "checkTextPresent") {
+        var t = document.querySelector('body');
+        var e = new TestRecorder.ElementEvent(TestRecorder.EventTypes.CheckTextPresent, t, request.text);
+        recorder.testcase.append(e);
+    }
+    
+    if (request.action === "checkHref") {
+        var t = rightclicked_item;
+        var e = new TestRecorder.ElementEvent(TestRecorder.EventTypes.CheckHref, t);
+        recorder.testcase.append(e);
+    }
+    
+    if (request.action === "checkEnabled") {
+        var t = rightclicked_item;
+        var e = new TestRecorder.ElementEvent(TestRecorder.EventTypes.CheckEnabled, t);
+        recorder.testcase.append(e);
+    }
+    
+    if (request.action === "checkDisabled") {
+        var t = rightclicked_item;
+        var e = new TestRecorder.ElementEvent(TestRecorder.EventTypes.CheckDisabled, t);
+        recorder.testcase.append(e);
+    }
+    
+    if (request.action === "checkSelectValue") {
+        var t = rightclicked_item;
+        var e = new TestRecorder.ElementEvent(TestRecorder.EventTypes.CheckSelectValue, t);
+        recorder.testcase.append(e);
+    }
+    
+    if (request.action === "checkSelectOptions") {
+        var t = rightclicked_item;
+        var e = new TestRecorder.ElementEvent(TestRecorder.EventTypes.CheckSelectOptions, t);
+        recorder.testcase.append(e);
+    }
+    
+    if (request.action === "checkImgSrc") {
+        var t = rightclicked_item;
+        var e = new TestRecorder.ElementEvent(TestRecorder.EventTypes.CheckImageSrc, t);
+        recorder.testcase.append(e);
     }
 });
 
 //get current status from background
 chrome.runtime.sendMessage({ action: "get_status" }, function (response) {
-    if (response.active) {
+    if (response && response.active) {
         recorder.start();
     }
 });
