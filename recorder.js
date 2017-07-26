@@ -183,10 +183,17 @@ class Recorder {
             }
         });
         return `
+casper.on('step.error', function(err) {
+    casper.page.evaluate(function() {
+        document.body.bgColor = 'white';
+    });
+    casper.captureSelector("error.png", "html");
+    this.die("Step failed: " + err + " See error.png for more info");
+});
 casper.options.viewportSize = {width: 1280, height: 720};
-casper.test.begin('Placeholder', function(test) {
-${rendered.join('\n')}
-casper.run(function () {test.done();});
+casper.test.begin('${window.prompt("Name your test:")}', function(test) {
+    ${rendered.join('\n    ')}
+    casper.run(function() {test.done();});
 });
 `;
     }
