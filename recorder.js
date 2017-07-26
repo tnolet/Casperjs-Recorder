@@ -4,17 +4,6 @@ class Recorder {
         this.events = [];
         this.started = false;
         this.clickables = 'a, button, [type="submit"], [type="button"]';
-        window.addEventListener('click', this.doClick.bind(this));
-        window.addEventListener('input', this.doInput.bind(this));
-
-        /* Keep track of which element the contextmenu refers to */
-        this.contextMenuElement = document.body;
-        window.addEventListener("contextmenu", (e) => {
-            this.contextMenuElement = e.srcElement;
-        });
-        window.addEventListener("click", (e) => {
-            this.contextMenuElement = document.body;
-        });
 
         /* Allow background.js to call methods on Recorder */
         chrome.runtime.onMessage.addListener((request) => {
@@ -26,10 +15,17 @@ class Recorder {
             action: "get_events"
         }, (response) => {
             this.events = response.events;
+            if (this.events) {
+                this.started = true;
+                this.listen();
+            }
         });
     }
 
     addEvent(e) {
+        if (!this.started) {
+            return;
+        }
         this.events.push(e);
         chrome.runtime.sendMessage({
             events: this.events
@@ -114,9 +110,27 @@ class Recorder {
         /* Clear events */
         this.events = [];
         this.started = true;
+        this.listen();
+
+        /* Send start event */
         this.addEvent({
             type: "start",
             value: request.url
+        });
+    }
+
+    listen() {
+        /* Listen for clicks and inputs */
+        window.addEventListener('click', this.doClick.bind(this));
+        window.addEventListener('input', this.doInput.bind(this));
+
+        /* Keep track of which element the contextmenu refers to */
+        this.contextMenuElement = document.body;
+        window.addEventListener("contextmenu", (e) => {
+            this.contextMenuElement = e.srcElement;
+        });
+        window.addEventListener("click", (e) => {
+            this.contextMenuElement = document.body;
         });
     }
 
