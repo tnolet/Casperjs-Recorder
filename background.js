@@ -38,12 +38,13 @@ function createContextItems() {
             }
         }),
 
-        checkValue: chrome.contextMenus.create({
-            "title": "Check value",
+        checkElementValue: chrome.contextMenus.create({
+            "title": "Check value of input/select",
+            "contexts": ["page", "editable"],
             "onclick": function (e) {
                 chrome.tabs.getSelected(null, function (tab) {
                     chrome.tabs.sendMessage(tab.id, {
-                        action: "checkValue"
+                        action: "checkElementValue"
                     });
                 });
             }
