@@ -20,6 +20,11 @@ class Recorder {
                 this.listen();
             }
         });
+
+        /* Override disabled text selection */
+        var styleElem = document.createElement('style');
+        styleElem.innerHTML = '*{user-select: text !important;}';
+        document.querySelector('body').appendChild(styleElem);
     }
 
     addEvent(e) {
