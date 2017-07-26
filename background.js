@@ -84,6 +84,17 @@ function createContextItems() {
                     });
                 });
             }
+        }),
+
+        checkElement: chrome.contextMenus.create({
+            "title": "Check element",
+            "onclick": function (e) {
+                chrome.tabs.getSelected(null, function (tab) {
+                    chrome.tabs.sendMessage(tab.id, {
+                        action: "checkElement"
+                    });
+                });
+            }
         })
     }
 }
