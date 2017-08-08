@@ -29,6 +29,77 @@ class Recorder {
         }
     }
 
+    findParentByName(el, tag) {
+        while (el.parentNode) {
+            el = el.parentNode;
+            if (el.tagName === tag.toUpperCase())
+                return el;
+        }
+        return null;
+    }
+
+
+    findParentByUniquePath(el) {
+        while (el.parentNode.tagName) {
+            el = el.parentNode;
+            var sel = this.getPath(el, true);
+            if (sel && document.querySelectorAll(sel).length === 1) {
+                return sel;
+            }
+        }
+        return null;
+    }
+
+    getPath(el, shallow) {
+        // First option: If we have a name and a form parent use them with either the name or action of the form
+        var form = this.findParentByName(el, 'form');
+        var name = el.getAttribute('name');
+
+        if (name && form && form.getAttribute('action')) {
+            return `[action="${form.getAttribute('action')}"] [name="${name}"]`;
+        }
+
+        if (name && form && form.getAttribute('name')) {
+            return `[name="${form.getAttribute('name')}"] [name="${name}"]`;
+        }
+
+        // Second option: If we have a id it should be unique
+        if (el.getAttribute('id')) {
+            return `#${el.getAttribute('id')}`;
+        }
+
+        // Third option: If we have a href we check if it is unique before using
+        var selByHref = `[href="${el.getAttribute('href')}"]`;
+        if (el.getAttribute('href') && document.querySelectorAll(selByHref).length === 1) {
+            return selByHref;
+        }
+
+        // Forth option: Loop over all attributes, adding them to the selector until it is unique
+        if (el.attributes.length) {
+            var sel = Array.prototype.reduce.call(el.attributes, (sel, attr) => {
+                if (sel && document.querySelectorAll(sel).length === 1) {
+                    return sel;
+                }
+                return sel + `[${attr.name}="${attr.value}"]`;
+            }, "");
+            if (document.querySelectorAll(sel).length === 1) {
+                return sel;
+            }
+        }
+
+        // Fifth option: Find a unique parent and try to use that in combination with the current elements tagname
+        var parentPath = this.findParentByUniquePath(el);
+        var selByParentPath = `${parentPath} ${el.tagName.toLowerCase()}`;
+        if (!shallow && document.querySelectorAll(selByParentPath).length === 1) {
+            return selByParentPath;
+        }
+
+        // Sixth option: Fall back to using UTILS.cssPath, which will chain selectors up to an id/html element
+        if (!shallow){
+            return UTILS.cssPath(el);
+        }
+    }
+
     addEvent(e) {
         if (!this.started) {
             return;
@@ -45,7 +116,7 @@ class Recorder {
         }
         this.addEvent({
             type: "doClick",
-            target: UTILS.cssPath(e.target)
+            target: this.getPath(e.target)
         });
     }
 
@@ -53,12 +124,12 @@ class Recorder {
         if (e.target.nodeName === "SELECT") {
             return;
         }
-        if (this.events[this.events.length - 1] && this.events[this.events.length - 1].target === UTILS.cssPath(e.target)) {
+        if (this.events[this.events.length - 1] && this.events[this.events.length - 1].target === this.getPath(e.target)) {
             this.events.pop();
         }
         this.addEvent({
             type: "doInput",
-            target: UTILS.cssPath(e.target),
+            target: this.getPath(e.target),
             value: e.target.value
         });
     }
@@ -69,7 +140,7 @@ class Recorder {
         }
         this.addEvent({
             type: "doSelectChange",
-            target: UTILS.cssPath(e.target),
+            target: this.getPath(e.target),
             value: e.target.value
         });
     }
@@ -77,7 +148,7 @@ class Recorder {
     checkText(request, element = this.contextMenuElement) {
         this.addEvent({
             type: "checkText",
-            target: UTILS.cssPath(element),
+            target: this.getPath(element),
             value: request.text
         });
     }
@@ -85,14 +156,14 @@ class Recorder {
     checkElement(request, element = this.contextMenuElement) {
         this.addEvent({
             type: "checkElement",
-            target: UTILS.cssPath(element)
+            target: this.getPath(element)
         });
     }
 
     checkElementValue(request, element = this.contextMenuElement) {
         this.addEvent({
             type: "checkElementValue",
-            target: UTILS.cssPath(element),
+            target: this.getPath(element),
             value: element.value,
             text: element.textContent
         });
@@ -101,7 +172,7 @@ class Recorder {
     checkImage(request, element = this.contextMenuElement) {
         this.addEvent({
             type: "checkImage",
-            target: UTILS.cssPath(element),
+            target: this.getPath(element),
             value: element.getAttribute('src')
         });
     }
@@ -109,7 +180,7 @@ class Recorder {
     checkLink(request, element = this.contextMenuElement) {
         this.addEvent({
             type: "checkLink",
-            target: UTILS.cssPath(element),
+            target: this.getPath(element),
             value: element.getAttribute('href')
         });
     }
