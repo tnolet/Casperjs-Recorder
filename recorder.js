@@ -55,12 +55,12 @@ class Recorder {
         var form = this.findParentByName(el, 'form');
         var name = el.getAttribute('name');
 
-        if (name && form && form.getAttribute('action')) {
-            return `[action="${form.getAttribute('action')}"] [name="${name}"]`;
+        if (name && form && form.getAttribute('id')) {
+            return `[#${form.getAttribute('id')} [name="${name}"]`;
         }
 
-        if (name && form && form.getAttribute('name')) {
-            return `[name="${form.getAttribute('name')}"] [name="${name}"]`;
+        if (name && form && form.getAttribute('action')) {
+            return `[action="${form.getAttribute('action')}"] [name="${name}"]`;
         }
 
         // Second option: If we have a id it should be unique
