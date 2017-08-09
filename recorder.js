@@ -10,6 +10,9 @@ class Recorder {
             this[request.action](request);
         });
 
+        /* We need to start to listen early so that we get autofill fields */
+        this.listen();
+
         /* Get events from already started sessions */
         chrome.runtime.sendMessage({
             action: "get_events"
@@ -17,7 +20,6 @@ class Recorder {
             this.events = response.events;
             if (this.events) {
                 this.started = true;
-                this.listen();
             }
         });
 
@@ -77,12 +79,12 @@ class Recorder {
         // Forth option: Loop over all attributes, adding them to the selector until it is unique
         if (el.attributes.length) {
             var sel = Array.prototype.reduce.call(el.attributes, (sel, attr) => {
-                if (sel && document.querySelectorAll(sel).length === 1) {
+                if (attr.name.indexOf('aria-') !== -1 || attr.name.indexOf('data-') !== -1 || !attr.value || sel && document.querySelectorAll(sel).length === 1) {
                     return sel;
                 }
                 return sel + `[${attr.name}="${attr.value}"]`;
             }, "");
-            if (document.querySelectorAll(sel).length === 1) {
+            if (sel && document.querySelectorAll(sel).length === 1) {
                 return sel;
             }
         }
@@ -109,14 +111,15 @@ class Recorder {
             events: this.events
         });
     }
-
+    
     doClick(e) {
-        if (!e.target.matches(this.clickables)) {
+        const parentTarget = this.findParentByName(e.target, 'a') || this.findParentByName(e.target, 'button');
+        if (!e.target.matches(this.clickables) && !parentTarget) {
             return;
         }
         this.addEvent({
             type: "doClick",
-            target: this.getPath(e.target)
+            target: this.getPath(parentTarget || e.target)
         });
     }
 
@@ -213,9 +216,9 @@ class Recorder {
 
     listen() {
         /* Listen for clicks and inputs */
-        window.addEventListener('click', this.doClick.bind(this));
-        window.addEventListener('input', this.doInput.bind(this));
-        window.addEventListener('change', this.doSelectChange.bind(this));
+        window.addEventListener('click', this.doClick.bind(this), true);
+        window.addEventListener('input', this.doInput.bind(this), true);
+        window.addEventListener('change', this.doSelectChange.bind(this), true);
 
         /* Keep track of which element the contextmenu refers to */
         this.contextMenuElement = document.body;
